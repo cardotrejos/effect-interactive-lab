@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+/* dashed animation for pending edges */
+@keyframes dash {
+	to {
+		stroke-dashoffset: -16;
+	}
+}
+
+/* Code syntax highlighting */
+.code-comment {
+	color: #6b7280;
+	font-style: italic;
+}
+
+.code-keyword {
+	color: #8b5cf6;
+	font-weight: 600;
+}
+
+.code-string {
+	color: #10b981;
+}
+
+.code-number {
+	color: #f59e0b;
+}
+
+.code-function {
+	color: #3b82f6;
+}
+
+.code-type {
+	color: #06b6d4;
+}
