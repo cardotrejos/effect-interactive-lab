@@ -1,8 +1,6 @@
-# Effect Framework Demo
+# Effect Interactive Lab
 
-An interactive React application showcasing the powerful capabilities of the [Effect](https://effect.website/) TypeScript library. This demo illustrates Effect's features through visual, hands-on examples that highlight its advantages over traditional async/await patterns.
-
-![Effect Framework Demo](./Screenshot%202025-06-29%20at%209.20.25%20AM.png)
+An interactive React application showcasing the powerful capabilities of the [Effect](https://effect.website/) TypeScript library. This lab illustrates Effect's features through visual, hands-on examples that highlight its advantages over traditional async/await patterns.
 
 ## 🌟 What is Effect?
 
@@ -60,8 +58,8 @@ Effect is a powerful TypeScript framework that provides a fully-fledged function
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/effect-demo.git
-cd effect-demo
+git clone https://github.com/your-username/effect-interactive-lab.git
+cd effect-interactive-lab
 
 # Install dependencies
 npm install

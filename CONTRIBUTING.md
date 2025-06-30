@@ -80,20 +80,6 @@ src/
 - Use TypeScript strict mode
 - Follow the existing code organization patterns
 
-## 🧪 Testing
-
-Currently, the project focuses on interactive demonstrations. When adding features:
-
-1. **Manual Testing**
-   - Test all interactive controls
-   - Verify both real API and mock modes work
-   - Check performance comparisons are accurate
-   - Ensure code examples are runnable
-
-2. **Cross-browser Testing**
-   - Test in Chrome, Firefox, Safari, and Edge
-   - Verify mobile responsiveness
-
 ## 📝 Adding New Examples
 
 ### Code Examples
