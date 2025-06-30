@@ -1,15 +1,48 @@
 {
-  "name": "effect-demo",
-  "private": true,
-  "version": "0.0.0",
+  "name": "effect-framework-demo",
+  "private": false,
+  "version": "1.0.0",
   "type": "module",
+  "description": "Interactive demo showcasing Effect library's capabilities for building robust TypeScript applications",
+  "keywords": [
+    "effect",
+    "typescript",
+    "functional-programming",
+    "concurrency",
+    "error-handling",
+    "streams",
+    "demo",
+    "interactive",
+    "react"
+  ],
+  "homepage": "https://github.com/your-username/effect-demo#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-username/effect-demo.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/effect-demo/issues"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Effect Demo Contributors",
+    "url": "https://github.com/your-username/effect-demo/graphs/contributors"
+  },
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\" --names \"SERVER,CLIENT\" --prefix-colors \"blue,green\"",
     "client": "vite",
     "server": "node server/index.js",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "lint:fix": "eslint . --fix",
+    "type-check": "tsc -b --noEmit",
+    "preview": "vite preview",
+    "clean": "rm -rf dist node_modules/.vite",
+    "start": "npm run build && npm run preview"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   },
   "dependencies": {
     "@faker-js/faker": "^9.8.0",
