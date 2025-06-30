@@ -1,0 +1,30 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Explicitly declare text files you want to always be normalized and converted 
+# to native line endings on checkout.
+*.ts text
+*.tsx text
+*.js text
+*.jsx text
+*.json text
+*.md text
+*.css text
+*.html text
+*.svg text
+
+# Declare files that will always have CRLF line endings on checkout.
+# (none for this project)
+
+# Declare files that are binary and should not be modified.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+
+# GitHub language detection
+*.ts linguist-language=TypeScript
+*.tsx linguist-language=TypeScript
+server/*.js linguist-language=JavaScript
