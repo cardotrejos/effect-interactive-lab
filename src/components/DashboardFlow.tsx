@@ -26,7 +26,7 @@ export default function DashboardFlow(): React.ReactElement {
 	return (
 		<div className='flex flex-col gap-4 p-6 max-w-7xl mx-auto'>
 			<div className='text-center'>
-				<h1 className='text-3xl font-bold mb-2'>Effect Framework Demo</h1>
+				<h1 className='text-3xl font-bold mb-2'>Effect Interactive Lab</h1>
 				<p className='text-gray-600 mb-2'>
 					Explore Effect's powerful features for building robust applications
 				</p>

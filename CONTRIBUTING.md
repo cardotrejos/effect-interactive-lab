@@ -1,6 +1,6 @@
-# Contributing to Effect Framework Demo
+# Contributing to Effect Interactive Lab
 
-Thank you for your interest in contributing to the Effect Framework Demo! This guide will help you get started with contributing to this project.
+Thank you for your interest in contributing to the Effect Interactive Lab! This guide will help you get started with contributing to this project.
 
 ## 🎯 Project Goals
 
