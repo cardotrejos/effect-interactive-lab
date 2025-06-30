@@ -5,6 +5,7 @@ import ErrorHandlingTab from './tabs/ErrorHandlingTab'
 import RetriesTab from './tabs/RetriesTab'
 import DependencyInjectionTab from './tabs/DependencyInjectionTab'
 import StreamsTab from './tabs/StreamsTab'
+import FundamentalsTab from './tabs/FundamentalsTab'
 import { useDashboard } from '../hooks/useDashboard'
 import { useStreams } from '../hooks/useStreams'
 
@@ -58,6 +59,8 @@ export default function DashboardFlow(): React.ReactElement {
 					onRunDemo={runStreamDemo}
 				/>
 			)}
+
+			{activeTab === 'fundamentals' && <FundamentalsTab />}
 		</div>
 	)
 }
