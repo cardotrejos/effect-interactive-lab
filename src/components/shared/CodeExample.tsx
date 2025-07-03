@@ -14,7 +14,7 @@ export default function CodeExample({
 	return (
 		<div className={clsx(
 			'rounded-lg p-4 border-2 transition-all',
-			isActive 
+			isActive
 				? 'bg-gray-900 border-blue-500 shadow-lg shadow-blue-500/20' 
 				: 'bg-gray-900 border-gray-700'
 		)}>
