@@ -24,5 +24,6 @@
 
     "types": ["vite/client", "react", "react-dom"]
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/lib"]
 }
