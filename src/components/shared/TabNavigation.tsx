@@ -56,6 +56,12 @@ export default function TabNavigation({ activeTab, onTabChange }: TabNavigationP
 			>
 				Streams
 			</TabButton>
+			<TabButton
+				isActive={activeTab === 'fundamentals'}
+				onClick={() => onTabChange('fundamentals')}
+			>
+				Effect Fundamentals
+			</TabButton>
 		</div>
 	)
 }
