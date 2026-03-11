@@ -1,4 +1,4 @@
-import { Effect, Stream, Chunk, pipe } from 'effect'
+import { Effect, Stream, pipe } from 'effect'
 
 export type StreamEventType = 
   | 'csv-row' 
@@ -75,7 +75,7 @@ export const runCSVProcessingDemo = (options: StreamDemoOptions): Effect.Effect<
       // Parse CSV
       Stream.map(line => {
         const [id, name, status, value] = line.split(',')
-        return { id: parseInt(id), name, status, value: parseInt(value) }
+        return { id: parseInt(id, 10), name, status, value: parseInt(value, 10) }
       }),
       // Log each row
       Stream.tap(row => 
@@ -126,7 +126,7 @@ export const runCSVProcessingDemo = (options: StreamDemoOptions): Effect.Effect<
           return batch.length
         })
       ),
-      Stream.runFold(0, (acc, count) => acc + count)
+      Stream.runFold(() => 0, (acc: number, count: number) => acc + count)
     )
     
     onEvent({
@@ -306,14 +306,14 @@ export const runStreamCompositionDemo = (options: StreamDemoOptions): Effect.Eff
     const evenStream = pipe(
       sourceStream,
       Stream.filter(n => n % 2 === 0),
-      Stream.map(n => ({ type: 'even', value: n, squared: n * n }))
+      Stream.map(n => ({ type: 'even' as const, value: n, squared: n * n }))
     )
     
     // Branch 2: Odd numbers  
     const oddStream = pipe(
       sourceStream,
       Stream.filter(n => n % 2 !== 0),
-      Stream.map(n => ({ type: 'odd', value: n, cubed: n * n * n }))
+      Stream.map(n => ({ type: 'odd' as const, value: n, cubed: n * n * n }))
     )
     
     // Merge streams
@@ -341,7 +341,7 @@ export const runStreamCompositionDemo = (options: StreamDemoOptions): Effect.Eff
       Stream.runCollect
     )
     
-    const results = Chunk.toArray(mergedResults)
+    const results = mergedResults
     const evenSum = results
       .filter(r => r.type === 'even')
       .reduce((acc, r) => acc + (r as { squared: number }).squared, 0)

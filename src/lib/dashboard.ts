@@ -1,28 +1,35 @@
-import { Effect, Layer, Context, Duration, Cause, Fiber } from 'effect'
+import { Effect, Layer, ServiceMap, Duration, Fiber, Cause } from 'effect'
 
 /* ──── service contracts ────────────────────────────────────────── */
 
-export interface HttpClient {
+export interface HttpClientService {
 	readonly get: (url: string) => Effect.Effect<unknown, Error>
 }
-export const HttpClient = Context.GenericTag<HttpClient>("HttpClient")
+export class HttpClient extends ServiceMap.Service<HttpClient, HttpClientService>()("HttpClient") {}
 
-export interface Database {
+export interface DatabaseService {
 	readonly query: (sql: string) => Effect.Effect<unknown, Error>
 }
-export const Database = Context.GenericTag<Database>("Database")
+export class Database extends ServiceMap.Service<Database, DatabaseService>()("Database") {}
 
-export interface Recommender {
+export interface RecommenderService {
 	readonly recommend: (id: string) => Effect.Effect<string[], Error>
 }
-export const Recommender = Context.GenericTag<Recommender>("Recommender")
+export class Recommender extends ServiceMap.Service<Recommender, RecommenderService>()("Recommender") {}
 
-export interface LogSink {
+export interface LogSinkService {
 	readonly push: (msg: string) => Effect.Effect<void>
 }
-export const LogSink = Context.GenericTag<LogSink>("LogSink")
+export class LogSink extends ServiceMap.Service<LogSink, LogSinkService>()("LogSink") {}
 
 /* ──── helpers ──────────────────────────────────────────────────── */
+
+class TaskTimeoutError extends Error {
+	constructor() {
+		super('timeout')
+		this.name = 'TaskTimeoutError'
+	}
+}
 
 function timestamp(): string {
 	const now = new Date()
@@ -31,88 +38,70 @@ function timestamp(): string {
 
 /* ──── live layers ──────────────────────────────────────────────── */
 
-export const LiveHttpClient = Layer.succeed(
-	HttpClient,
-	{
-		get: (u: string) =>
-			Effect.tryPromise({
-				try: () => {
-					console.log(`[HTTP] Fetching from ${u}...`)
-					return fetch(`http://localhost:3001${u}`).then(async r => {
-						if (!r.ok) {
-							throw new Error(`HTTP ${r.status}: ${r.statusText}`)
-						}
-						return r.json()
-					})
-				},
-				catch: (error) => new Error(`HTTP request failed: ${error}`)
-			})
-	}
-)
+export const LiveHttpClient = Layer.succeed(HttpClient, {
+	get: (u: string) =>
+		Effect.tryPromise({
+			try: () => {
+				console.log(`[HTTP] Fetching from ${u}...`)
+				return fetch(`http://localhost:3001${u}`).then(async (r) => {
+					if (!r.ok) {
+						throw new Error(`HTTP ${r.status}: ${r.statusText}`)
+					}
+					return r.json()
+				})
+			},
+			catch: (error) => new Error(`HTTP request failed: ${error}`)
+		})
+})
 
-export const LiveDatabase = Layer.succeed(
-	Database,
-	{
-		query: (q: string) =>
-			Effect.tryPromise({
-				try: () => {
-					console.log(`[DB] Executing: ${q}`)
-					// Extract user ID from query for demo purposes
-					const userIdMatch = q.match(/user[=\s]+(\d+)/i)
-					const userId = userIdMatch ? userIdMatch[1] : '42'
-					return fetch(`http://localhost:3001/api/orders/${userId}`).then(async r => {
-						if (!r.ok) {
-							throw new Error(`Database query failed: ${r.status} ${r.statusText}`)
-						}
-						return r.json()
-					})
-				},
-				catch: (error) => new Error(`Database error: ${error}`)
-			})
-	}
-)
+export const LiveDatabase = Layer.succeed(Database, {
+	query: (q: string) =>
+		Effect.tryPromise({
+			try: () => {
+				console.log(`[DB] Executing: ${q}`)
+				// Extract user ID from query for demo purposes
+				const userIdMatch = q.match(/user[=\s]+(\d+)/i)
+				const userId = userIdMatch ? userIdMatch[1] : '42'
+				return fetch(`http://localhost:3001/api/orders/${userId}`).then(async (r) => {
+					if (!r.ok) {
+						throw new Error(`Database query failed: ${r.status} ${r.statusText}`)
+					}
+					return r.json()
+				})
+			},
+			catch: (error) => new Error(`Database error: ${error}`)
+		})
+})
 
-export const LiveRecommender = Layer.succeed(
-	Recommender,
-	{
-		recommend: (id: string) =>
-			Effect.tryPromise({
-				try: () => {
-					console.log(`[ML] Computing recommendations for user ${id}...`)
-					return fetch(`http://localhost:3001/api/recommendations/${id}`).then(async r => {
-						if (!r.ok) {
-							throw new Error(`ML service failed: ${r.status} ${r.statusText}`)
-						}
-						const recommendations = await r.json()
-						// Return just the names for simplicity, like the original interface
-						return recommendations.map((rec: any) => `${rec.name} (${rec.confidence * 100}% match)`)
-					})
-				},
-				catch: (error) => new Error(`Recommendation error: ${error}`)
-			})
-	}
-)
+export const LiveRecommender = Layer.succeed(Recommender, {
+	recommend: (id: string) =>
+		Effect.tryPromise({
+			try: () => {
+				console.log(`[ML] Computing recommendations for user ${id}...`)
+				return fetch(`http://localhost:3001/api/recommendations/${id}`).then(async (r) => {
+					if (!r.ok) {
+						throw new Error(`ML service failed: ${r.status} ${r.statusText}`)
+					}
+					const recommendations = await r.json()
+					// Return just the names for simplicity, like the original interface
+					return recommendations.map((rec: { name: string; confidence: number }) => `${rec.name} (${rec.confidence * 100}% match)`)
+				})
+			},
+			catch: (error) => new Error(`Recommendation error: ${error}`)
+		})
+})
 
 /* ──── mock layers (instant) ────────────────────────────────────── */
 
-export const MockHttpClient = Layer.succeed(
-	HttpClient,
-	{
-		get: () => Effect.sync(() => ({ name: 'Mock User' }))
-	}
-)
-export const MockDatabase = Layer.succeed(
-	Database,
-	{
-		query: () => Effect.sync(() => ['mock-order'])
-	}
-)
-export const MockRecommender = Layer.succeed(
-	Recommender,
-	{
-		recommend: () => Effect.sync(() => ['mock-rec'])
-	}
-)
+export const MockHttpClient = Layer.succeed(HttpClient, {
+	get: () => Effect.sync(() => ({ name: 'Mock User' }))
+})
+export const MockDatabase = Layer.succeed(Database, {
+	query: () => Effect.sync(() => ['mock-order'])
+})
+export const MockRecommender = Layer.succeed(Recommender, {
+	recommend: () => Effect.sync(() => ['mock-rec'])
+})
 
 /* ──── log sink layer ───────────────────────────────────────────── */
 
@@ -121,7 +110,7 @@ export function createLogSink(push: (s: string) => void): Layer.Layer<LogSink> {
 }
 
 export function log(line: string): Effect.Effect<void, never, LogSink> {
-	return Effect.flatMap(LogSink, s => s.push(line))
+	return Effect.flatMap(Effect.service(LogSink), (s) => s.push(line))
 }
 
 /* ──── business logic ───────────────────────────────────────────── */
@@ -148,7 +137,7 @@ export function programWithEffectConcurrency(
 	): Effect.Effect<A, Error, LogSink | R> {
 		const done = (s: TaskState) => notify(key, s)
 		const startTime = Date.now()
-		
+
 		return Effect.Do.pipe(
 			Effect.tap(() => log(`[${timestamp()}] 🚀 ${description}`)),
 			Effect.flatMap(() => eff),
@@ -157,31 +146,35 @@ export function programWithEffectConcurrency(
 				return log(`[${timestamp()}] ✅ ${key} completed (${elapsed}s)`)
 			}),
 			Effect.tap(() => Effect.sync(() => done('success'))),
-			Effect.timeoutFail({
-				onTimeout: () => new Error('timeout'),
-				duration: Duration.seconds(5)
+			Effect.timeoutOrElse({
+				duration: Duration.seconds(5),
+				onTimeout: () => Effect.fail(new TaskTimeoutError())
 			}),
-			Effect.catchAllCause(c => {
-				const isTimeout = Cause.isInterrupted(c)
+			Effect.catchCause((cause) => {
+				const error = Cause.squash(cause)
+				const isTimeout = error instanceof TaskTimeoutError
 				return Effect.all([
 					log(`[${timestamp()}] ❌ ${key} ${isTimeout ? 'timed out' : 'failed'}`),
 					Effect.sync(() => done(isTimeout ? 'timeout' : 'error'))
-				]).pipe(Effect.flatMap(() => Effect.failCause(c)))
+				]).pipe(Effect.flatMap(() => Effect.failCause(cause)))
 			})
 		)
 	}
 
-	const userTask = wrap('user', 
-		Effect.flatMap(HttpClient, c => c.get(`/api/users/${userId}`)),
-		"Fetching user profile from API..."
+	const userTask = wrap(
+		'user',
+		Effect.flatMap(Effect.service(HttpClient), (c) => c.get(`/api/users/${userId}`)),
+		'Fetching user profile from API...'
 	)
-	const ordersTask = wrap('orders',
-		Effect.flatMap(Database, db => db.query(`SELECT * FROM orders WHERE user=${userId}`)),
-		"Querying order history from database..."
+	const ordersTask = wrap(
+		'orders',
+		Effect.flatMap(Effect.service(Database), (db) => db.query(`SELECT * FROM orders WHERE user=${userId}`)),
+		'Querying order history from database...'
 	)
-	const recsTask = wrap('recs', 
-		Effect.flatMap(Recommender, r => r.recommend(userId)),
-		"Computing personalized recommendations..."
+	const recsTask = wrap(
+		'recs',
+		Effect.flatMap(Effect.service(Recommender), (r) => r.recommend(userId)),
+		'Computing personalized recommendations...'
 	)
 
 	return Effect.Do.pipe(
@@ -201,12 +194,12 @@ export function programWithEffectConcurrency(
 				case 'fibers':
 					return Effect.Do.pipe(
 						Effect.tap(() => log(`🧵 Fiber-based concurrency - manual fiber management`)),
-						Effect.flatMap(() => 
+						Effect.flatMap(() =>
 							Effect.gen(function* () {
 								// Fork each task into its own fiber
-								const userFiber = yield* Effect.fork(userTask)
-								const ordersFiber = yield* Effect.fork(ordersTask)
-								const recsFiber = yield* Effect.fork(recsTask)
+								const userFiber = yield* userTask.pipe(Effect.forkDetach)
+								const ordersFiber = yield* ordersTask.pipe(Effect.forkDetach)
+								const recsFiber = yield* recsTask.pipe(Effect.forkDetach)
 
 								yield* log(`🧵 Forked 3 fibers, waiting for completion...`)
 
@@ -226,50 +219,59 @@ export function programWithEffectConcurrency(
 						Effect.flatMap(() => {
 							// Simplified racing - just run all concurrently but log the winner
 							const startTime = Date.now()
-							return Effect.all({
-								user: userTask.pipe(
-									Effect.tap(() => {
-										const elapsed = Date.now() - startTime
-										return log(`🥇 User task finished first! (${elapsed}ms)`)
-									})
-								),
-								orders: ordersTask.pipe(
-									Effect.tap(() => {
-										const elapsed = Date.now() - startTime
-										return log(`🥈 Orders task finished (${elapsed}ms)`)
-									})
-								),
-								recs: recsTask.pipe(
-									Effect.tap(() => {
-										const elapsed = Date.now() - startTime
-										return log(`🥉 Recs task finished (${elapsed}ms)`)
-									})
-								)
-							}, { concurrency: "unbounded" })
+							return Effect.all(
+								{
+									user: userTask.pipe(
+										Effect.tap(() => {
+											const elapsed = Date.now() - startTime
+											return log(`🥇 User task finished first! (${elapsed}ms)`)
+										})
+									),
+									orders: ordersTask.pipe(
+										Effect.tap(() => {
+											const elapsed = Date.now() - startTime
+											return log(`🥈 Orders task finished (${elapsed}ms)`)
+										})
+									),
+									recs: recsTask.pipe(
+										Effect.tap(() => {
+											const elapsed = Date.now() - startTime
+											return log(`🥉 Recs task finished (${elapsed}ms)`)
+										})
+									)
+								},
+								{ concurrency: 'unbounded' }
+							)
 						})
 					)
 
 				case 'batched':
 					return Effect.Do.pipe(
 						Effect.tap(() => log(`📦 Batched execution - controlled resource usage`)),
-						Effect.flatMap(() => 
-							Effect.all({
-								user: userTask,
-								orders: ordersTask,
-								recs: recsTask
-							}, { concurrency: 2 }) // Limit to 2 concurrent operations
+						Effect.flatMap(() =>
+							Effect.all(
+								{
+									user: userTask,
+									orders: ordersTask,
+									recs: recsTask
+								},
+								{ concurrency: 2 }
+							)
 						)
 					)
 
-				default: // concurrent
+				default:
 					return Effect.Do.pipe(
 						Effect.tap(() => log(`⚡ Concurrent execution with Effect.all`)),
-						Effect.flatMap(() => 
-							Effect.all({
-								user: userTask,
-								orders: ordersTask,
-								recs: recsTask
-							}, { concurrency: "unbounded" })
+						Effect.flatMap(() =>
+							Effect.all(
+								{
+									user: userTask,
+									orders: ordersTask,
+									recs: recsTask
+								},
+								{ concurrency: 'unbounded' }
+							)
 						)
 					)
 			}

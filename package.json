@@ -50,7 +50,7 @@
     "clsx": "^2.1.1",
     "concurrently": "^9.2.0",
     "cors": "^2.8.5",
-    "effect": "^3.16.10",
+    "effect": "^4.0.0-beta.30",
     "express": "^5.1.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
