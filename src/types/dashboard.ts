@@ -9,7 +9,15 @@ export interface EdgeMeta {
 
 export type StatusMap = Record<TaskKey, TaskState | 'pending'>
 
-export type TabType = 'concurrency' | 'error-handling' | 'retries' | 'dependency-injection' | 'streams' | 'fundamentals'
+export type TabType =
+	| 'concurrency'
+	| 'error-handling'
+	| 'retries'
+	| 'dependency-injection'
+	| 'streams'
+	| 'fundamentals'
+	| 'effect-v4'
+	| 'comparison'
 
 export type ConcurrencyMode = 'concurrent' | 'sequential' | 'fibers' | 'racing' | 'batched'
 

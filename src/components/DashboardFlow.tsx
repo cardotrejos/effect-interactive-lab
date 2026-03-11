@@ -6,6 +6,8 @@ import RetriesTab from './tabs/RetriesTab'
 import DependencyInjectionTab from './tabs/DependencyInjectionTab'
 import StreamsTab from './tabs/StreamsTab'
 import FundamentalsTab from './tabs/FundamentalsTab'
+import EffectV4Tab from './tabs/EffectV4Tab'
+import ComparisonTab from './tabs/ComparisonTab'
 import { useDashboard } from '../hooks/useDashboard'
 import { useStreams } from '../hooks/useStreams'
 
@@ -61,6 +63,10 @@ export default function DashboardFlow(): React.ReactElement {
 			)}
 
 			{activeTab === 'fundamentals' && <FundamentalsTab />}
+			
+			{activeTab === 'effect-v4' && <EffectV4Tab />}
+
+			{activeTab === 'comparison' && <ComparisonTab />}
 		</div>
 	)
 }

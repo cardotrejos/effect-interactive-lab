@@ -62,6 +62,18 @@ export default function TabNavigation({ activeTab, onTabChange }: TabNavigationP
 			>
 				Effect Fundamentals
 			</TabButton>
+			<TabButton
+				isActive={activeTab === 'effect-v4'}
+				onClick={() => onTabChange('effect-v4')}
+			>
+				⚡ Effect v4
+			</TabButton>
+			<TabButton
+				isActive={activeTab === 'comparison'}
+				onClick={() => onTabChange('comparison')}
+			>
+				Compare v3/v4
+			</TabButton>
 		</div>
 	)
 }
