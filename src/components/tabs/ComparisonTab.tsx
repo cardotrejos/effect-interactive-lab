@@ -17,53 +17,60 @@ interface ComparisonSection {
 
 const comparisonSections: Record<ComparisonTopic, ComparisonSection> = {
 	'dependency-injection': {
-		title: 'Dependency Injection: ServiceMap Patterns',
-		summary: 'v4 supports multiple DI styles: function-style ServiceMap keys and class-style ServiceMap keys.',
-		v3Code: `// Effect v4: function-style key
+		title: 'Dependency Injection: Choose the Right Service Pattern',
+		summary: 'Both patterns are valid in v4. Use function keys by default; use class + make + static layer when constructors depend on services.',
+		v3Code: `// Pattern A: function key (minimal, preferred)
 import { Effect, Layer, ServiceMap } from "effect"
 
 interface Database {
   readonly query: (sql: string) => Effect.Effect<readonly unknown[]>
 }
 
-const DatabaseService = ServiceMap.Service<Database>("DatabaseService")
+const Database = ServiceMap.Service<Database>("Database")
 
-const DatabaseLive = Layer.effect(
-  DatabaseService,
-  Effect.succeed({
-    query: (_sql) => Effect.sync(() => [])
-  })
-)
+const DatabaseLive = Layer.succeed(Database, {
+  query: (_sql) => Effect.sync(() => [])
+})
 
 const program = Effect.gen(function* () {
-  const db = yield* DatabaseService
+  const db = yield* Database
   return yield* db.query("select * from users")
 }).pipe(Effect.provide(DatabaseLive))`,
-		v4Code: `// Effect v4: class-style key
+		v4Code: `// Pattern B: class key (constructor has dependencies)
 import { Effect, Layer, ServiceMap } from "effect"
 
-interface Database {
-  readonly query: (sql: string) => Effect.Effect<readonly unknown[]>
+const Config = ServiceMap.Service<{ readonly table: string }>("Config")
+
+class Database extends ServiceMap.Service<Database>()("Database", {
+  make: Effect.gen(function* () {
+    const config = yield* Config
+    return {
+      query: (sql: string) =>
+        Effect.sync(() => [{ sql, table: config.table }] as const)
+    } as const
+  })
+}) {
+  static readonly layer = Layer.effect(this, this.make)
 }
 
-class DatabaseService extends ServiceMap.Service<DatabaseService, Database>()("DatabaseService") {}
-
 const program = Effect.gen(function* () {
-  const db = yield* DatabaseService
+  const db = yield* Database
   return yield* db.query("select * from users")
-}).pipe(Effect.provide(Layer.succeed(DatabaseService, {
-  query: (_sql) => Effect.sync(() => [])
-})))`,
+}).pipe(
+  Effect.provide(Database.layer.pipe(
+    Layer.provide(Layer.succeed(Config, { table: "users" }))
+  ))
+)`,
 		takeaways: [
-			'Choose function-style keys for minimal setup and class-style keys for explicit identity.',
-			'`Layer.succeed`, `Layer.effect`, and `Effect.provide` remain central patterns.',
-			'Most runtime behavior remains the same across both styles.'
+			'Function syntax keeps simple services concise.',
+			'Class syntax shines when you need `make` + colocated layer wiring.',
+			'In both cases, access services with `yield* ServiceKey`.'
 		]
 	},
 	schema: {
 		title: 'Schema: encode/decode and make changes',
-		summary: 'v4 makes conversion APIs explicitly effectful and clarifies safe versus unsafe constructors.',
-		v3Code: `// Effect v3
+		summary: 'v4 keeps schema modeling similar while making conversion and construction intent explicit.',
+		v3Code: `// Earlier style
 import { Schema } from "effect"
 
 const User = Schema.Struct({
@@ -75,7 +82,7 @@ const parse = Schema.decode(User)
 const serialize = Schema.encode(User)
 
 const user = User.make({ id: "1", email: "dev@effect.app" })`,
-		v4Code: `// Effect v4
+		v4Code: `// v4 style
 import { Effect, Schema } from "effect"
 
 const User = Schema.Struct({
@@ -86,45 +93,36 @@ const User = Schema.Struct({
 const parse = Schema.decodeEffect(User)
 const serialize = Schema.encodeEffect(User)
 
-const unsafeUser = User.makeUnsafe({ id: "1", email: "dev@effect.app" })
-
 const safeProgram = Effect.gen(function* () {
-  return yield* User.make({ id: "1", email: "dev@effect.app" })
+  const user = yield* User.make({ id: "1", email: "dev@effect.app" })
+  return yield* serialize(user)
 })`,
 		takeaways: [
-			'Use `Schema.decodeEffect` and `Schema.encodeEffect` for effectful conversions.',
-			'Replace `schema.make()` with `schema.makeUnsafe()` or `yield* schema.make()`.',
-			'Schema migration is usually search-and-replace with explicit runtime intent.'
+			'Use `Schema.decodeEffect` and `Schema.encodeEffect` for effect-aware conversion.',
+			'Use `yield* schema.make(...)` for validated construction in Effect code.',
+			'Use `makeUnsafe` only when validation is intentionally bypassed.'
 		]
 	},
 	'bundle-size': {
 		title: 'Bundle Size Improvements',
-		summary: 'The v4 beta focuses heavily on tree-shaking and package shape, reducing browser payload size.',
-		v3Code: `// Typical bundle profile in v3-era apps
-// effect runtime + utility imports
-// approx browser payload: ~70KB
-//
-// Example concern:
-// - slower first load
-// - larger JS parse/execute cost`,
-		v4Code: `// Typical bundle profile in v4 beta notes
-// unified package layout + improved tree-shaking
-// approx browser payload: ~20KB
-//
-// Expected gain:
-// - around 50KB reduction
-// - faster load and startup`,
+		summary: 'v4 design focuses on better package shape and tree-shaking for frontend usage.',
+		v3Code: `// Typical v3-era concern
+// - larger browser payloads
+// - more fragmented imports across packages`,
+		v4Code: `// Typical v4 direction
+// - single core package for most APIs
+// - better tree-shaking opportunities
+// - smaller client bundles in many apps`,
 		takeaways: [
-			'Reference metric from release notes: `70KB → 20KB`.',
-			'The improvement is a practical reason to plan v4 migration for frontend apps.',
-			'Run your own bundle analysis after migration to verify app-specific impact.'
+			'Bundle outcomes are app-specific, but v4 generally improves tree-shaking.',
+			'Consolidated imports reduce accidental over-importing.',
+			'Measure with your own build pipeline after migration.'
 		]
 	},
 	'package-consolidation': {
 		title: 'Package Consolidation',
-		summary: 'v4 simplifies dependency management by consolidating APIs under the `effect` package.',
-		v3Code: `// v3-era ecosystem in many projects
-// package.json
+		summary: 'v4 simplifies dependency management with a more unified package surface.',
+		v3Code: `// Earlier ecosystem in many projects
 {
   "dependencies": {
     "effect": "^3.x",
@@ -132,19 +130,18 @@ const safeProgram = Effect.gen(function* () {
     "@effect/data": "^0.x"
   }
 }`,
-		v4Code: `// v4 package direction
-// package.json
+		v4Code: `// v4 direction
 {
   "dependencies": {
     "effect": "^4.x"
   }
 }
 
-// import { Effect, Schema, Layer } from "effect"`,
+// import { Effect, Layer, ServiceMap, Schema } from "effect"`,
 		takeaways: [
-			'Fewer package boundaries make onboarding and upgrades simpler.',
-			'Imports become more consistent across modules and examples.',
-			'This project keeps v3 default now, but the tab demonstrates the v4 target shape.'
+			'Fewer package boundaries simplify upgrades.',
+			'Import paths become more consistent across examples.',
+			'Migration effort is usually lowest when done incrementally by module.'
 		]
 	}
 }
@@ -158,7 +155,7 @@ export default function ComparisonTab(): React.ReactElement {
 			<div className="bg-gradient-to-r from-slate-50 to-cyan-50 p-6 rounded-lg">
 				<h2 className="text-2xl font-bold mb-3">v3 vs v4 Comparison</h2>
 				<p className="text-gray-700">
-					Use this tab as a migration cheat sheet with before/after snippets for core Effect concepts.
+					Use this tab as a migration cheat sheet with side-by-side snippets for core Effect concepts.
 				</p>
 			</div>
 
@@ -184,16 +181,8 @@ export default function ComparisonTab(): React.ReactElement {
 			</div>
 
 			<div className="grid lg:grid-cols-2 gap-4">
-				<CodeExample
-					title="Pattern A"
-					code={section.v3Code}
-					language="typescript"
-				/>
-				<CodeExample
-					title="Pattern B"
-					code={section.v4Code}
-					language="typescript"
-				/>
+				<CodeExample title="Pattern A" code={section.v3Code} language="typescript" />
+				<CodeExample title="Pattern B" code={section.v4Code} language="typescript" />
 			</div>
 
 			<div className="bg-gray-50 p-6 rounded-lg">

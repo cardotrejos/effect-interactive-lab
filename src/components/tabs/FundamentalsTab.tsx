@@ -11,236 +11,166 @@ interface ConceptSection {
 
 const conceptSections: Record<FundamentalsConcept, ConceptSection> = {
 	tags: {
-		title: '🧩 Services - Type-Safe Service Identifiers',
+		title: '🧩 Services - Function Keys First',
 		description:
-			'In v4, service identity is modeled with ServiceMap.Service classes. They are the keys you yield in Effects and provide with Layers.',
-		code: `import { Effect, ServiceMap } from 'effect'
+			'In v4, the default service pattern is function syntax. Define a service key with ServiceMap.Service<T>(id), then use it with yield*.',
+		code: `import { Effect, Layer, ServiceMap } from 'effect'
 
 interface Logger {
-  log: (message: string) => Effect.Effect<void>
-  error: (message: string) => Effect.Effect<void>
+  readonly log: (message: string) => Effect.Effect<void>
+  readonly error: (message: string) => Effect.Effect<void>
 }
 
-class LoggerService extends ServiceMap.Service<LoggerService, Logger>()(
-  "LoggerService"
-) {}
+const Logger = ServiceMap.Service<Logger>("Logger")
 
-console.log("Service key:", LoggerService.key) // "LoggerService"
+const LoggerLive = Layer.succeed(Logger, {
+  log: (message) => Effect.sync(() => console.log(message)),
+  error: (message) => Effect.sync(() => console.error(message))
+})
 
 const program = Effect.gen(function* () {
-  const logger = yield* LoggerService
+  const logger = yield* Logger
   yield* logger.log("Hello from Effect v4")
   yield* logger.error("Something went wrong")
 })
 
-// This program needs a LoggerService implementation
-// provided via Layer or ServiceMap.`
+Effect.runPromise(program.pipe(Effect.provide(LoggerLive)))`
 	},
 
 	context: {
 		title: '📦 ServiceMap - Runtime Service Container',
 		description:
-			'ServiceMap is the immutable runtime container for service implementations. Build it directly or let Layer composition do it for you.',
-		code: `import { Effect, ServiceMap, pipe } from 'effect'
+			'ServiceMap is the immutable runtime map for service implementations. You can build it directly, then provide it to an Effect.',
+		code: `import { Effect, ServiceMap } from 'effect'
 
 interface Logger {
-  log: (message: string) => Effect.Effect<void>
+  readonly log: (message: string) => Effect.Effect<void>
 }
-class LoggerService extends ServiceMap.Service<LoggerService, Logger>()("LoggerService") {}
+const Logger = ServiceMap.Service<Logger>("Logger")
 
 interface Database {
-  query: (sql: string) => Effect.Effect<unknown[]>
+  readonly query: (sql: string) => Effect.Effect<unknown[]>
 }
-class DatabaseService extends ServiceMap.Service<DatabaseService, Database>()("DatabaseService") {}
+const Database = ServiceMap.Service<Database>("Database")
 
-const services = pipe(
-  ServiceMap.make(LoggerService, {
-    log: (msg) => Effect.sync(() => console.log(
-      \`[LOG] \${msg}\`
-    ))
-  }),
-  ServiceMap.add(DatabaseService, {
+const services = ServiceMap.make(Logger, {
+  log: (msg) => Effect.sync(() => console.log(\`[LOG] \${msg}\`))
+}).pipe(
+  ServiceMap.add(Database, {
     query: () => Effect.succeed([{ id: 1, name: "Test" }])
   })
 )
 
 const program = Effect.gen(function* () {
-  const logger = yield* LoggerService
-  const db = yield* DatabaseService
+  const logger = yield* Logger
+  const db = yield* Database
   yield* logger.log("Querying database...")
   return yield* db.query("SELECT * FROM users")
 })
 
-Effect.runPromise(
-  pipe(program, Effect.provideServices(services))
-)`
+Effect.runPromise(program.pipe(Effect.provideServices(services)))`
 	},
 
 	layers: {
-		title: '🏗️ Layers - Composable Service Factories',
+		title: '🏗️ Layers - Class + make for Dependencies',
 		description:
-			'Layers are still the preferred way to build and wire services. In v4, they target ServiceMap.Service keys.',
-		code: `import { Effect, Layer, ServiceMap, pipe } from 'effect'
-
-interface Logger {
-  log: (message: string) => Effect.Effect<void>
-  error: (message: string) => Effect.Effect<void>
-}
-class LoggerService extends ServiceMap.Service<LoggerService, Logger>()("LoggerService") {}
+			'Use class syntax when the service has an effectful constructor or explicit lifecycle. Define make, then expose a static layer.',
+		code: `import { Effect, Layer, ServiceMap } from 'effect'
 
 interface Config {
-  logLevel: 'debug' | 'info' | 'error'
-  apiUrl: string
+  readonly logLevel: 'debug' | 'info' | 'error'
 }
-class ConfigService extends ServiceMap.Service<ConfigService, Config>()("ConfigService") {}
+const Config = ServiceMap.Service<Config>("Config")
 
-const ConfigLayer = Layer.succeed(ConfigService, {
-  logLevel: 'debug',
-  apiUrl: 'https://api.example.com'
-})
-
-const ConsoleLoggerLayer = Layer.succeed(LoggerService, {
-  log: (msg: string) => Effect.sync(() => console.log(msg)),
-  error: (msg: string) => Effect.sync(() => console.error(msg))
-})
-
-const ConfigurableLoggerLayer = Layer.effect(
-  LoggerService,
-  Effect.gen(function* () {
-    const config = yield* ConfigService
-
+class Logger extends ServiceMap.Service<Logger>()("Logger", {
+  make: Effect.gen(function* () {
+    const config = yield* Config
     return {
-      log: (msg: string) => Effect.sync(() => {
-        if (config.logLevel !== 'error') {
-          console.log(\`[\${config.logLevel.toUpperCase()}] \${msg}\`)
-        }
-      }),
-      error: (msg: string) => Effect.sync(() => console.error(msg))
-    }
+      log: (message: string) =>
+        Effect.sync(() => console.log(\`[\${config.logLevel}] \${message}\`)),
+      error: (message: string) =>
+        Effect.sync(() => console.error(\`[error] \${message}\`))
+    } as const
   })
-)
+}) {
+  static readonly layer = Layer.effect(this, this.make)
+}
 
-const AppLayer = pipe(
-  ConfigurableLoggerLayer,
-  Layer.provide(ConfigLayer)
+const appLayer = Logger.layer.pipe(
+  Layer.provide(Layer.succeed(Config, { logLevel: 'debug' as const }))
 )`
 	},
 
 	composition: {
 		title: '🔄 Real-World Composition Pattern',
 		description:
-			'ServiceMap keys and Layer wiring compose the same way as before, but with v4 service identities.',
-		code: `import { Effect, Layer, ServiceMap, pipe } from 'effect'
+			'Mix function keys and class services intentionally: function keys for plain contracts, class + make for dependent construction.',
+		code: `import { Effect, Layer, ServiceMap } from 'effect'
 
-interface Logger {
-  log: (message: string) => Effect.Effect<void>
+interface HttpClient {
+  readonly get: (path: string) => Effect.Effect<unknown, Error>
 }
-interface Config {
-  apiUrl: string
-}
-interface AuthService {
-  getToken: () => Effect.Effect<string, Error>
-}
-interface ApiClient {
-  get: (path: string) => Effect.Effect<unknown, Error>
-}
+const HttpClient = ServiceMap.Service<HttpClient>("HttpClient")
 
-class LoggerService extends ServiceMap.Service<LoggerService, Logger>()("LoggerService") {}
-class ConfigService extends ServiceMap.Service<ConfigService, Config>()("ConfigService") {}
-class AuthServiceLive extends ServiceMap.Service<AuthServiceLive, AuthService>()("AuthService") {}
-class ApiClientService extends ServiceMap.Service<ApiClientService, ApiClient>()("ApiClientService") {}
-
-const AuthLayer = Layer.effect(
-  AuthServiceLive,
-  Effect.gen(function* () {
-    const logger = yield* LoggerService
-    let token = "initial-token"
-
+interface Auth {
+  readonly token: () => Effect.Effect<string>
+}
+class Auth extends ServiceMap.Service<Auth>()("Auth", {
+  make: Effect.gen(function* () {
+    const http = yield* HttpClient
     return {
-      getToken: () => Effect.gen(function* () {
-        yield* logger.log("Refreshing auth token...")
-        token = \`token-\${Date.now()}\`
-        return token
-      })
-    }
+      token: () => http.get("/token").pipe(Effect.as("token-123"))
+    } as const
   })
-)
+}) {
+  static readonly layer = Layer.effect(this, this.make)
+}
 
-const ApiClientLayer = Layer.effect(
-  ApiClientService,
-  Effect.gen(function* () {
-    const config = yield* ConfigService
-    const auth = yield* AuthServiceLive
+const HttpClientLive = Layer.succeed(HttpClient, {
+  get: (_path) => Effect.succeed({ ok: true })
+})
 
-    return {
-      get: (path: string) => Effect.gen(function* () {
-        const token = yield* auth.getToken()
-        return { url: \`\${config.apiUrl}\${path}\`, token }
-      })
-    }
-  })
-)
+const appLayer = Auth.layer.pipe(Layer.provide(HttpClientLive))
 
-const appLayer = Layer.mergeAll(
-  Layer.succeed(ConfigService, { apiUrl: 'https://api.example.com' }),
-  Layer.succeed(LoggerService, { log: (m: string) => Effect.sync(() => console.log(m)) }),
-  pipe(AuthLayer),
-  pipe(ApiClientLayer)
-)
-
-const fetchUserData = (userId: string) =>
-  Effect.gen(function* () {
-    const api = yield* ApiClientService
-    return yield* api.get(\`/users/\${userId}\`)
-  })
-
-Effect.runPromise(fetchUserData('123').pipe(Effect.provide(appLayer)))`
+const fetchSession = Effect.gen(function* () {
+  const auth = yield* Auth
+  return yield* auth.token()
+}).pipe(Effect.provide(appLayer))`
 	},
 
 	comparison: {
-		title: '🔀 Manual ServiceMap vs Effect.Service',
+		title: '🔀 Function Keys vs Class Keys',
 		description:
-			'Both approaches are valid in v4. Manual ServiceMap classes are explicit; Effect.Service reduces boilerplate for common service patterns.',
+			'Use function keys by default. Use class keys when you need make and colocated static layers.',
 		code: `import { Effect, Layer, ServiceMap } from 'effect'
 
 interface PaymentApi {
-  charge: (amount: number, currency: string) => Effect.Effect<string, Error>
-  refund: (transactionId: string) => Effect.Effect<void, Error>
+  readonly charge: (amount: number) => Effect.Effect<string, Error>
 }
 
-// MANUAL V4 APPROACH
-class PaymentServiceManual extends ServiceMap.Service<
-  PaymentServiceManual,
-  PaymentApi
->()("PaymentService") {}
-
-const PaymentLayerManual = Layer.effect(
-  PaymentServiceManual,
-  Effect.succeed({
-    charge: (amount: number, currency: string) =>
-      Effect.succeed(\`tx-\${amount}-\${currency}\`),
-    refund: () => Effect.void
-  })
-)
-
-// EFFECT.SERVICE APPROACH
-class PaymentService extends Effect.Service<PaymentService>()(
-  "PaymentService",
-  {
-    effect: Effect.succeed({
-      charge: (amount: number, currency: string) =>
-        Effect.succeed(\`tx-\${amount}-\${currency}\`),
-      refund: () => Effect.void
-    })
-  }
-) {}
-
-const program = Effect.gen(function* () {
-  const payment = yield* PaymentServiceManual
-  return yield* payment.charge(99.99, "USD")
+// A) Preferred for simple services
+const Payment = ServiceMap.Service<PaymentApi>("Payment")
+const PaymentLayer = Layer.succeed(Payment, {
+  charge: (amount) => Effect.succeed(\`tx-\${amount}\`)
 })
 
-Effect.runPromise(program.pipe(Effect.provide(PaymentLayerManual)))`
+// B) Useful when constructor has dependencies
+const Config = ServiceMap.Service<{ readonly currency: string }>("Config")
+class PaymentWithConfig extends ServiceMap.Service<PaymentWithConfig>()("PaymentWithConfig", {
+  make: Effect.gen(function* () {
+    const config = yield* Config
+    return {
+      charge: (amount: number) => Effect.succeed(\`tx-\${amount}-\${config.currency}\`)
+    } as const
+  })
+}) {
+  static readonly layer = Layer.effect(this, this.make)
+}
+
+const program = Effect.gen(function* () {
+  const payment = yield* Payment
+  return yield* payment.charge(99.99)
+}).pipe(Effect.provide(PaymentLayer))`
 	}
 }
 
@@ -253,14 +183,14 @@ export default function FundamentalsTab(): React.ReactElement {
 			<div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg">
 				<h2 className="text-2xl font-bold mb-3">Understanding ServiceMap and Layers</h2>
 				<p className="text-gray-700 mb-4">
-					Effect v4 replaces legacy tag declarations with{' '}
-					<code className="bg-white px-2 py-1 rounded">ServiceMap.Service</code>. The dependency
-					 injection model is the same, but service identity is now class-based.
+					Effect v4 uses <code className="bg-white px-2 py-1 rounded">ServiceMap.Service</code> for
+					service identity. Start with function keys, then move to class + <code>make</code> when
+					service construction depends on other services.
 				</p>
 				<div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
 					<p className="text-sm">
-						<strong>💡 Pro Tip:</strong> Learn the manual ServiceMap pattern first; then use
-						 helper APIs where they reduce boilerplate.
+						<strong>💡 Pro Tip:</strong> Function keys keep most services minimal; class keys are best
+						for effectful constructors and static layers.
 					</p>
 				</div>
 			</div>
@@ -296,10 +226,10 @@ export default function FundamentalsTab(): React.ReactElement {
 					<div className="bg-white p-4 rounded-lg">
 						<h4 className="font-medium text-blue-600 mb-2">ServiceMap.Service</h4>
 						<ul className="text-sm space-y-1 text-gray-600">
-							<li>• Type-safe service identifiers</li>
-							<li>• Class-based keys you can yield directly</li>
-							<li>• Replaces legacy GenericTag declarations in v4</li>
-							<li>• Works with Layer and Effect.provide</li>
+							<li>• Function syntax is the default in v4</li>
+							<li>• Class syntax exists for make/static layer patterns</li>
+							<li>• Replaces legacy Context/Tag style declarations</li>
+							<li>• Use with yield* inside Effect.gen</li>
 						</ul>
 					</div>
 					<div className="bg-white p-4 rounded-lg">
@@ -317,16 +247,16 @@ export default function FundamentalsTab(): React.ReactElement {
 							<li>• Service factories/recipes</li>
 							<li>• Handle initialization & cleanup</li>
 							<li>• Support dependencies</li>
-							<li>• Composable and reusable</li>
+							<li>• Compose with provide/mergeAll</li>
 						</ul>
 					</div>
 					<div className="bg-white p-4 rounded-lg">
-						<h4 className="font-medium text-orange-600 mb-2">Effect.Service</h4>
+						<h4 className="font-medium text-orange-600 mb-2">Generator Access</h4>
 						<ul className="text-sm space-y-1 text-gray-600">
-							<li>• Optional helper for service classes</li>
-							<li>• Reduces boilerplate for defaults</li>
-							<li>• Integrates with Layer and Effect</li>
-							<li>• Great for app-level services</li>
+							<li>• Prefer yield* ServiceKey over accessor helpers</li>
+							<li>• Keeps dependencies explicit in the program body</li>
+							<li>• Works naturally with Effect.gen control flow</li>
+							<li>• Improves readability for multi-service programs</li>
 						</ul>
 					</div>
 				</div>
@@ -337,7 +267,7 @@ export default function FundamentalsTab(): React.ReactElement {
 				<ol className="space-y-2 text-sm">
 					<li className="flex items-start">
 						<span className="font-bold text-blue-600 mr-2">1.</span>
-						<span>Start with <strong>ServiceMap.Service</strong> identifiers</span>
+						<span>Start with function-style <strong>ServiceMap.Service</strong> keys</span>
 					</li>
 					<li className="flex items-start">
 						<span className="font-bold text-blue-600 mr-2">2.</span>
@@ -349,11 +279,11 @@ export default function FundamentalsTab(): React.ReactElement {
 					</li>
 					<li className="flex items-start">
 						<span className="font-bold text-blue-600 mr-2">4.</span>
-						<span>Practice composition patterns with multiple dependencies</span>
+						<span>Use <strong>yield*</strong> to access services in generators</span>
 					</li>
 					<li className="flex items-start">
 						<span className="font-bold text-blue-600 mr-2">5.</span>
-						<span>Use <strong>Effect.Service</strong> when you want concise service definitions</span>
+						<span>Adopt class + <strong>make</strong> only for effectful constructors</span>
 					</li>
 				</ol>
 			</div>
@@ -364,13 +294,13 @@ export default function FundamentalsTab(): React.ReactElement {
 					<div>
 						<h4 className="font-medium text-purple-700 mb-2">Essential Imports</h4>
 						<pre className="bg-white p-3 rounded text-xs overflow-x-auto">
-{`import { Effect, ServiceMap, Layer, pipe } from 'effect'`}
+{`import { Effect, ServiceMap, Layer } from 'effect'`}
 						</pre>
 					</div>
 					<div>
-						<h4 className="font-medium text-purple-700 mb-2">Basic Pattern</h4>
+						<h4 className="font-medium text-purple-700 mb-2">Default Pattern</h4>
 						<pre className="bg-white p-3 rounded text-xs overflow-x-auto">
-{`class ServiceKey extends ServiceMap.Service<ServiceKey, Service>()("Service") {}
+{`const ServiceKey = ServiceMap.Service<Service>("Service")
 const ServiceLayer = Layer.succeed(ServiceKey, impl)
 const program = Effect.gen(function* () {
   const service = yield* ServiceKey
@@ -382,16 +312,18 @@ const program = Effect.gen(function* () {
 						<h4 className="font-medium text-pink-700 mb-2">Layer Types</h4>
 						<pre className="bg-white p-3 rounded text-xs overflow-x-auto">
 {`Layer.succeed(Key, value)           // Simple
-Layer.effect(Key, Effect)           // With init
-Layer.scoped(Key, ScopedEffect)     // With cleanup`}
+Layer.effect(Key, Effect)            // Effectful constructor
+Layer.scoped(Key, ScopedEffect)      // Constructor with cleanup`}
 						</pre>
 					</div>
 					<div>
-						<h4 className="font-medium text-pink-700 mb-2">Composition</h4>
+						<h4 className="font-medium text-pink-700 mb-2">Class Pattern</h4>
 						<pre className="bg-white p-3 rounded text-xs overflow-x-auto">
-{`Layer.mergeAll(L1, L2, L3)          // Combine
-pipe(Layer, Layer.provide(Dep))     // Provide deps
-Effect.provide(program, Layer)      // Run with Layer`}
+{`class Service extends ServiceMap.Service<Service>()("Service", {
+  make: Effect.gen(function* () { /* ... */ })
+}) {
+  static readonly layer = Layer.effect(this, this.make)
+}`}
 						</pre>
 					</div>
 				</div>

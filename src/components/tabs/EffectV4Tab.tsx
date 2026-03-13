@@ -15,49 +15,61 @@ interface FeatureSection {
 const featureSections: Record<V4Feature, FeatureSection> = {
 	migration: {
 		title: '🧭 Dependency Injection Migration',
-		description: 'Service identity in v4 is modeled with ServiceMap keys. You can use either function-style keys or class-style keys.',
-		v3Code: `// Effect v4: function-style ServiceMap key
+		description:
+			'Use function keys as the default service declaration. Use class syntax with make when the service constructor needs dependencies.',
+		v3Code: `// Pattern A: function key (preferred for simple services)
 import { Effect, Layer, ServiceMap } from "effect"
 
 interface Logger {
   readonly log: (message: string) => Effect.Effect<void>
 }
 
-const LoggerService = ServiceMap.Service<Logger>("LoggerService")
+const Logger = ServiceMap.Service<Logger>("Logger")
 
-const LoggerLive = Layer.succeed(LoggerService, {
+const LoggerLive = Layer.succeed(Logger, {
   log: (message) => Effect.sync(() => console.log(message))
 })
 
 const program = Effect.gen(function* () {
-  const logger = yield* LoggerService
+  const logger = yield* Logger
   yield* logger.log("running function-style v4 program")
 }).pipe(Effect.provide(LoggerLive))`,
-		v4Code: `// Effect v4: class-style ServiceMap key
+		v4Code: `// Pattern B: class key + make + static layer (for dependencies)
 import { Effect, Layer, ServiceMap } from "effect"
 
-interface Logger {
-  readonly log: (message: string) => Effect.Effect<void>
+const Config = ServiceMap.Service<{ readonly prefix: string }>("Config")
+
+class Logger extends ServiceMap.Service<Logger>()("Logger", {
+  make: Effect.gen(function* () {
+    const config = yield* Config
+    return {
+      log: (message: string) =>
+        Effect.sync(() => console.log(\`[\${config.prefix}] \${message}\`))
+    } as const
+  })
+}) {
+  static readonly layer = Layer.effect(this, this.make)
 }
 
-class LoggerService extends ServiceMap.Service<LoggerService, Logger>()("LoggerService") {}
-
 const program = Effect.gen(function* () {
-  const logger = yield* LoggerService
+  const logger = yield* Logger
   yield* logger.log("running class-style v4 program")
-}).pipe(Effect.provide(Layer.succeed(LoggerService, {
-  log: (message) => Effect.sync(() => console.log(message))
-})))`,
+}).pipe(
+  Effect.provide(Logger.layer.pipe(
+    Layer.provide(Layer.succeed(Config, { prefix: "app" }))
+  ))
+)`,
 		highlights: [
-			'Both function-style and class-style keys are valid in v4.',
-			'`Layer.succeed` and `Effect.provide` still work; composition stays familiar.',
-			'Migration is mostly mechanical: update service identity declarations.'
+			'Function keys are the normal v4 default.',
+			'Use class + `make` when initialization depends on other services.',
+			'Expose an explicit layer with `Layer.effect(this, this.make)`.'
 		]
 	},
 	schema: {
 		title: '📐 Schema API Changes',
-		description: 'v4 makes schema encoding/decoding effectful and introduces explicit construction APIs for safe vs unsafe object creation.',
-		v3Code: `// Effect v3 schema style
+		description:
+			'v4 keeps schema construction familiar but makes decode/encode pipelines explicit and effect-friendly.',
+		v3Code: `// Earlier schema style
 import { Schema } from "effect"
 
 const User = Schema.Struct({
@@ -66,13 +78,8 @@ const User = Schema.Struct({
 })
 
 const decodeUser = Schema.decode(User)
-const encodeUser = Schema.encode(User)
-
-const user = User.make({
-  id: "u_1",
-  email: "team@example.com"
-})`,
-		v4Code: `// Effect v4 schema style
+const encodeUser = Schema.encode(User)`,
+		v4Code: `// v4 schema style
 import { Effect, Schema } from "effect"
 
 const User = Schema.Struct({
@@ -83,65 +90,57 @@ const User = Schema.Struct({
 const decodeUser = Schema.decodeEffect(User)
 const encodeUser = Schema.encodeEffect(User)
 
-const userUnsafe = User.makeUnsafe({
-  id: "u_1",
-  email: "team@example.com"
-})
-
 const program = Effect.gen(function* () {
   const user = yield* User.make({
     id: "u_1",
     email: "team@example.com"
   })
-  return user
+  return yield* encodeUser(user)
 })`,
 		highlights: [
-			'`Schema.encode/decode` moves to `Schema.encodeEffect/decodeEffect`.',
-			'`schema.make()` now has explicit options: `makeUnsafe()` or `yield* schema.make()`.',
-			'Decode and encode paths become explicit in types and runtime flow.'
+			'Use `Schema.decodeEffect` and `Schema.encodeEffect` for effectful conversion.',
+			'Prefer `yield* schema.make(...)` when creation should be validated in-effect.',
+			'Use `makeUnsafe` only when you intentionally skip validation.'
 		]
 	},
 	compatibility: {
 		title: '✅ Compatibility Notes',
-		description: 'Many everyday patterns remain stable, so you can migrate incrementally instead of rewriting the application architecture.',
-		code: `import { Effect, Layer, Schema } from "effect"
+		description:
+			'Most business logic patterns stay the same: Effect.gen, Layer composition, and explicit dependencies.',
+		code: `import { Effect, Layer, ServiceMap } from "effect"
 
-// These patterns stay valid in both v3 and v4:
-// - Effect.gen / Effect.flatMap / Effect.map
-// - Layer.succeed / Layer.effect / Layer.mergeAll
-// - Existing service wiring strategy with provide/provideSome
+interface Config {
+  readonly baseUrl: string
+}
+const Config = ServiceMap.Service<Config>("Config")
 
-const ConfigLive = Layer.succeed("Config", { baseUrl: "https://api.app" })
+const ConfigLive = Layer.succeed(Config, { baseUrl: "https://api.app" })
 
 const program = Effect.gen(function* () {
-  // your business logic stays inside Effect programs
-  return "still works with familiar Layer + Effect patterns"
-})`,
+  const config = yield* Config
+  return \`calling \${config.baseUrl}\`
+}).pipe(Effect.provide(ConfigLive))`,
 		highlights: [
-			'Existing `Layer.succeed` and `Layer.effect` usage remains valid.',
-			'Most business logic inside `Effect.gen` can be carried forward unchanged.',
-			'Focus migration effort on DI identity and schema constructor changes first.'
+			'`Effect.gen` + `yield*` remains the main authoring style.',
+			'`Layer.succeed`, `Layer.effect`, and `Layer.mergeAll` remain core APIs.',
+			'Migrate service declarations first, then refine layer structure.'
 		]
 	},
 	packaging: {
 		title: '📦 Packaging & Bundle Size',
-		description: 'v4 consolidates package distribution under `effect@4.x` and improves tree-shaking for much smaller client bundles.',
+		description: 'v4 consolidates core APIs under `effect` and improves tree-shaking.',
 		code: `// Package model
-// v3 ecosystem: multiple packages and heavier browser payloads
-// v4 ecosystem: unified package under effect@4.x
-
+// v4: install one primary runtime package
 // npm install effect@4.x
 
-// Expected browser bundle impact (from Effect v4 beta notes):
-// - before: ~70KB
-// - after:  ~20KB
-// - delta:  ~50KB reduction
+// Import style stays consistent:
+// import { Effect, Layer, ServiceMap, Schema } from "effect"
 
-// Result: smaller JS payloads and faster startup for interactive apps`,
+// This usually yields smaller browser bundles than v3-era setups.`,
 		highlights: [
-			'Package consolidation: all core APIs are unified under `effect@4.x`.',
-			'Reported bundle impact: roughly `70KB → 20KB` in browser-focused builds.',
-			'Smaller bundles make v4 attractive even before full feature migration.'
+			'Core APIs are unified under `effect`.',
+			'Imports become simpler and more consistent.',
+			'Tree-shaking improvements reduce client payload in many projects.'
 		]
 	}
 }
@@ -156,13 +155,14 @@ export default function EffectV4Tab(): React.ReactElement {
 			<div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-6 rounded-lg">
 				<h2 className="text-2xl font-bold mb-3">⚡ Effect v4 Migration Guide</h2>
 				<p className="text-gray-700 mb-4">
-					This tab focuses on v4 patterns and shows equivalent implementation options with concrete code.
+					This tab focuses on idiomatic v4 patterns and practical migration choices.
 				</p>
 				<div className="bg-white border border-purple-200 rounded p-4 text-sm text-gray-700">
 					<p>
-						<strong>Key changes to watch:</strong> service identity with `ServiceMap.Service`,
-						`Schema.encode/decode` to effectful variants, constructor updates with `makeUnsafe`,
-						and package consolidation with better bundle size.
+						<strong>Key changes to watch:</strong> function-first service declarations with
+						<code> ServiceMap.Service</code>, class services with explicit <code>make</code> +
+						<code> layer</code> for dependency-aware constructors, and generator access via
+						<code> yield*</code>.
 					</p>
 				</div>
 			</div>
@@ -191,23 +191,11 @@ export default function EffectV4Tab(): React.ReactElement {
 
 				{hasComparison ? (
 					<div className="grid lg:grid-cols-2 gap-4">
-						<CodeExample
-							title="Effect v3 (Before)"
-							code={currentSection.v3Code ?? ''}
-							language="typescript"
-						/>
-						<CodeExample
-							title="Effect v4 (After)"
-							code={currentSection.v4Code ?? ''}
-							language="typescript"
-						/>
+						<CodeExample title="Pattern A" code={currentSection.v3Code ?? ''} language="typescript" />
+						<CodeExample title="Pattern B" code={currentSection.v4Code ?? ''} language="typescript" />
 					</div>
 				) : (
-					<CodeExample
-						title="Code Example"
-						code={currentSection.code ?? ''}
-						language="typescript"
-					/>
+					<CodeExample title="Code Example" code={currentSection.code ?? ''} language="typescript" />
 				)}
 			</div>
 
@@ -225,22 +213,22 @@ export default function EffectV4Tab(): React.ReactElement {
 				<ul className="space-y-2 text-sm">
 					<li>
 						<a
-							href="https://effect.website/blog/releases/effect/40-beta/"
+							href="https://github.com/Effect-TS/effect-smol/blob/main/migration/services.md"
 							className="text-blue-600 hover:underline"
 							target="_blank"
 							rel="noreferrer"
 						>
-							Effect v4 Beta Blog Post →
+							Service Migration Guide →
 						</a>
 					</li>
 					<li>
 						<a
-							href="https://github.com/Effect-TS/effect-smol/blob/main/MIGRATION.md"
+							href="https://effect.website/docs/requirements-management/services/"
 							className="text-blue-600 hover:underline"
 							target="_blank"
 							rel="noreferrer"
 						>
-							Effect Migration Guide →
+							Effect Services Docs →
 						</a>
 					</li>
 				</ul>

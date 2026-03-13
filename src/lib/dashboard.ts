@@ -2,25 +2,25 @@ import { Effect, Layer, ServiceMap, Duration, Fiber, Cause } from 'effect'
 
 /* ──── service contracts ────────────────────────────────────────── */
 
-export interface HttpClientService {
+export interface HttpClient {
 	readonly get: (url: string) => Effect.Effect<unknown, Error>
 }
-export class HttpClient extends ServiceMap.Service<HttpClient, HttpClientService>()("HttpClient") {}
+export const HttpClient = ServiceMap.Service<HttpClient>("HttpClient")
 
-export interface DatabaseService {
+export interface Database {
 	readonly query: (sql: string) => Effect.Effect<unknown, Error>
 }
-export class Database extends ServiceMap.Service<Database, DatabaseService>()("Database") {}
+export const Database = ServiceMap.Service<Database>("Database")
 
-export interface RecommenderService {
+export interface Recommender {
 	readonly recommend: (id: string) => Effect.Effect<string[], Error>
 }
-export class Recommender extends ServiceMap.Service<Recommender, RecommenderService>()("Recommender") {}
+export const Recommender = ServiceMap.Service<Recommender>("Recommender")
 
-export interface LogSinkService {
+export interface LogSink {
 	readonly push: (msg: string) => Effect.Effect<void>
 }
-export class LogSink extends ServiceMap.Service<LogSink, LogSinkService>()("LogSink") {}
+export const LogSink = ServiceMap.Service<LogSink>("LogSink")
 
 /* ──── helpers ──────────────────────────────────────────────────── */
 
@@ -110,7 +110,10 @@ export function createLogSink(push: (s: string) => void): Layer.Layer<LogSink> {
 }
 
 export function log(line: string): Effect.Effect<void, never, LogSink> {
-	return Effect.flatMap(Effect.service(LogSink), (s) => s.push(line))
+	return Effect.gen(function* () {
+		const sink = yield* LogSink
+		yield* sink.push(line)
+	})
 }
 
 /* ──── business logic ───────────────────────────────────────────── */
@@ -163,17 +166,26 @@ export function programWithEffectConcurrency(
 
 	const userTask = wrap(
 		'user',
-		Effect.flatMap(Effect.service(HttpClient), (c) => c.get(`/api/users/${userId}`)),
+		Effect.gen(function* () {
+			const client = yield* HttpClient
+			return yield* client.get(`/api/users/${userId}`)
+		}),
 		'Fetching user profile from API...'
 	)
 	const ordersTask = wrap(
 		'orders',
-		Effect.flatMap(Effect.service(Database), (db) => db.query(`SELECT * FROM orders WHERE user=${userId}`)),
+		Effect.gen(function* () {
+			const database = yield* Database
+			return yield* database.query(`SELECT * FROM orders WHERE user=${userId}`)
+		}),
 		'Querying order history from database...'
 	)
 	const recsTask = wrap(
 		'recs',
-		Effect.flatMap(Effect.service(Recommender), (r) => r.recommend(userId)),
+		Effect.gen(function* () {
+			const recommender = yield* Recommender
+			return yield* recommender.recommend(userId)
+		}),
 		'Computing personalized recommendations...'
 	)
 
