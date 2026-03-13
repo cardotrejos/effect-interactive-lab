@@ -15,49 +15,43 @@ interface FeatureSection {
 const featureSections: Record<V4Feature, FeatureSection> = {
 	migration: {
 		title: '🧭 Dependency Injection Migration',
-		description: 'Service identity moves from Context.Tag values to ServiceMap.Service definitions in v4. Core Effect and Layer composition patterns still transfer directly.',
-		v3Code: `// Effect v3: Context.GenericTag + Layer.effect
-import { Context, Effect, Layer } from "effect"
-
-interface Logger {
-  log: (message: string) => Effect.Effect<void>
-}
-
-const LoggerTag = Context.GenericTag<Logger>("Logger")
-
-const LoggerLive = Layer.succeed(LoggerTag, {
-  log: (message) => Effect.sync(() => console.log(message))
-})
-
-const program = Effect.gen(function* () {
-  const logger = yield* LoggerTag
-  yield* logger.log("running v3 program")
-}).pipe(Effect.provide(LoggerLive))`,
-		v4Code: `// Effect v4: ServiceMap.Service identity
+		description: 'Service identity in v4 is modeled with ServiceMap keys. You can use either function-style keys or class-style keys.',
+		v3Code: `// Effect v4: function-style ServiceMap key
 import { Effect, Layer, ServiceMap } from "effect"
 
 interface Logger {
   readonly log: (message: string) => Effect.Effect<void>
 }
 
-class LoggerService extends ServiceMap.Service<LoggerService>()(
-  "LoggerService",
-  { effect: Effect.succeed({
-      log: (message: string) => Effect.sync(() => console.log(message))
-    })
-  }
-) {}
+const LoggerService = ServiceMap.Service<Logger>("LoggerService")
+
+const LoggerLive = Layer.succeed(LoggerService, {
+  log: (message) => Effect.sync(() => console.log(message))
+})
 
 const program = Effect.gen(function* () {
   const logger = yield* LoggerService
-  yield* logger.log("running v4 program")
+  yield* logger.log("running function-style v4 program")
+}).pipe(Effect.provide(LoggerLive))`,
+		v4Code: `// Effect v4: class-style ServiceMap key
+import { Effect, Layer, ServiceMap } from "effect"
+
+interface Logger {
+  readonly log: (message: string) => Effect.Effect<void>
+}
+
+class LoggerService extends ServiceMap.Service<LoggerService, Logger>()("LoggerService") {}
+
+const program = Effect.gen(function* () {
+  const logger = yield* LoggerService
+  yield* logger.log("running class-style v4 program")
 }).pipe(Effect.provide(Layer.succeed(LoggerService, {
   log: (message) => Effect.sync(() => console.log(message))
 })))`,
 		highlights: [
-			'`Context.GenericTag` becomes `ServiceMap.Service` for service identity.',
+			'Both function-style and class-style keys are valid in v4.',
 			'`Layer.succeed` and `Effect.provide` still work; composition stays familiar.',
-			'Migration is mostly mechanical: update tag/service declarations.'
+			'Migration is mostly mechanical: update service identity declarations.'
 		]
 	},
 	schema: {
@@ -162,12 +156,11 @@ export default function EffectV4Tab(): React.ReactElement {
 			<div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-6 rounded-lg">
 				<h2 className="text-2xl font-bold mb-3">⚡ Effect v4 Migration Guide</h2>
 				<p className="text-gray-700 mb-4">
-					This tab keeps v3 as the default path and explains how to migrate safely to v4. Use the
-					sections below to compare old and new APIs with concrete code.
+					This tab focuses on v4 patterns and shows equivalent implementation options with concrete code.
 				</p>
 				<div className="bg-white border border-purple-200 rounded p-4 text-sm text-gray-700">
 					<p>
-						<strong>Key changes to watch:</strong> `Context.GenericTag` to `ServiceMap.Service`,
+						<strong>Key changes to watch:</strong> service identity with `ServiceMap.Service`,
 						`Schema.encode/decode` to effectful variants, constructor updates with `makeUnsafe`,
 						and package consolidation with better bundle size.
 					</p>

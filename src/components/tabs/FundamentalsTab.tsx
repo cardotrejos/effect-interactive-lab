@@ -253,7 +253,7 @@ export default function FundamentalsTab(): React.ReactElement {
 			<div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg">
 				<h2 className="text-2xl font-bold mb-3">Understanding ServiceMap and Layers</h2>
 				<p className="text-gray-700 mb-4">
-					Effect v4 replaces the old Context/Tag declarations with{' '}
+					Effect v4 replaces legacy tag declarations with{' '}
 					<code className="bg-white px-2 py-1 rounded">ServiceMap.Service</code>. The dependency
 					 injection model is the same, but service identity is now class-based.
 				</p>
@@ -298,7 +298,7 @@ export default function FundamentalsTab(): React.ReactElement {
 						<ul className="text-sm space-y-1 text-gray-600">
 							<li>• Type-safe service identifiers</li>
 							<li>• Class-based keys you can yield directly</li>
-							<li>• Replaces Context.GenericTag in v4</li>
+							<li>• Replaces legacy GenericTag declarations in v4</li>
 							<li>• Works with Layer and Effect.provide</li>
 						</ul>
 					</div>

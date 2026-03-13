@@ -17,42 +17,36 @@ interface ComparisonSection {
 
 const comparisonSections: Record<ComparisonTopic, ComparisonSection> = {
 	'dependency-injection': {
-		title: 'Dependency Injection: Context/Tag → ServiceMap',
-		summary: 'The migration changes service identity primitives while preserving familiar Layer and Effect composition patterns.',
-		v3Code: `// Effect v3
-import { Context, Effect, Layer } from "effect"
-
-interface Database {
-  query: (sql: string) => Effect.Effect<readonly unknown[]>
-}
-
-const DatabaseTag = Context.GenericTag<Database>("Database")
-
-const DatabaseLive = Layer.effect(
-  DatabaseTag,
-  Effect.succeed({
-    query: (sql) => Effect.sync(() => [])
-  })
-)
-
-const program = Effect.gen(function* () {
-  const db = yield* DatabaseTag
-  return yield* db.query("select * from users")
-}).pipe(Effect.provide(DatabaseLive))`,
-		v4Code: `// Effect v4
+		title: 'Dependency Injection: ServiceMap Patterns',
+		summary: 'v4 supports multiple DI styles: function-style ServiceMap keys and class-style ServiceMap keys.',
+		v3Code: `// Effect v4: function-style key
 import { Effect, Layer, ServiceMap } from "effect"
 
 interface Database {
   readonly query: (sql: string) => Effect.Effect<readonly unknown[]>
 }
 
-class DatabaseService extends ServiceMap.Service<DatabaseService>()(
-  "DatabaseService",
-  { effect: Effect.succeed({
-      query: (_sql: string) => Effect.sync(() => [])
-    })
-  }
-) {}
+const DatabaseService = ServiceMap.Service<Database>("DatabaseService")
+
+const DatabaseLive = Layer.effect(
+  DatabaseService,
+  Effect.succeed({
+    query: (_sql) => Effect.sync(() => [])
+  })
+)
+
+const program = Effect.gen(function* () {
+  const db = yield* DatabaseService
+  return yield* db.query("select * from users")
+}).pipe(Effect.provide(DatabaseLive))`,
+		v4Code: `// Effect v4: class-style key
+import { Effect, Layer, ServiceMap } from "effect"
+
+interface Database {
+  readonly query: (sql: string) => Effect.Effect<readonly unknown[]>
+}
+
+class DatabaseService extends ServiceMap.Service<DatabaseService, Database>()("DatabaseService") {}
 
 const program = Effect.gen(function* () {
   const db = yield* DatabaseService
@@ -61,9 +55,9 @@ const program = Effect.gen(function* () {
   query: (_sql) => Effect.sync(() => [])
 })))`,
 		takeaways: [
-			'`Context.GenericTag` declarations move to `ServiceMap.Service` classes.',
+			'Choose function-style keys for minimal setup and class-style keys for explicit identity.',
 			'`Layer.succeed`, `Layer.effect`, and `Effect.provide` remain central patterns.',
-			'Most runtime behavior remains the same after DI identifier migration.'
+			'Most runtime behavior remains the same across both styles.'
 		]
 	},
 	schema: {
@@ -191,12 +185,12 @@ export default function ComparisonTab(): React.ReactElement {
 
 			<div className="grid lg:grid-cols-2 gap-4">
 				<CodeExample
-					title="Effect v3 (Before)"
+					title="Pattern A"
 					code={section.v3Code}
 					language="typescript"
 				/>
 				<CodeExample
-					title="Effect v4 (After)"
+					title="Pattern B"
 					code={section.v4Code}
 					language="typescript"
 				/>
