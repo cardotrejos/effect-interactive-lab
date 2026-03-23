@@ -1,4 +1,4 @@
-import { Effect, Stream, pipe } from 'effect'
+import { Effect, Stream, Chunk, pipe } from 'effect'
 
 export type StreamEventType = 
   | 'csv-row' 
@@ -126,7 +126,7 @@ export const runCSVProcessingDemo = (options: StreamDemoOptions): Effect.Effect<
           return batch.length
         })
       ),
-      Stream.runFold(() => 0, (acc: number, count: number) => acc + count)
+      Stream.runFold(0, (acc: number, count: number) => acc + count)
     )
     
     onEvent({
@@ -341,18 +341,18 @@ export const runStreamCompositionDemo = (options: StreamDemoOptions): Effect.Eff
       Stream.runCollect
     )
     
-    const results = mergedResults
-    const evenSum = results
+    const resultsArray = Chunk.toArray(mergedResults)
+    const evenSum = resultsArray
       .filter(r => r.type === 'even')
       .reduce((acc, r) => acc + (r as { squared: number }).squared, 0)
-    const oddSum = results
+    const oddSum = resultsArray
       .filter(r => r.type === 'odd')
       .reduce((acc, r) => acc + (r as { cubed: number }).cubed, 0)
     
     onEvent({
       type: 'complete',
       message: `✅ Composition complete: Even sum = ${evenSum}, Odd sum = ${oddSum}`,
-      data: { evenSum, oddSum, totalItems: results.length },
+      data: { evenSum, oddSum, totalItems: resultsArray.length },
       timestamp: Date.now()
     })
     

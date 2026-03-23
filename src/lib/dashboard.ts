@@ -1,26 +1,26 @@
-import { Effect, Layer, ServiceMap, Duration, Fiber, Cause } from 'effect'
+import { Effect, Layer, Context, Duration, Fiber, Cause } from 'effect'
 
 /* ──── service contracts ────────────────────────────────────────── */
 
 export interface HttpClient {
 	readonly get: (url: string) => Effect.Effect<unknown, Error>
 }
-export const HttpClient = ServiceMap.Service<HttpClient>("HttpClient")
+export const HttpClient = Context.GenericTag<HttpClient>("HttpClient")
 
 export interface Database {
 	readonly query: (sql: string) => Effect.Effect<unknown, Error>
 }
-export const Database = ServiceMap.Service<Database>("Database")
+export const Database = Context.GenericTag<Database>("Database")
 
 export interface Recommender {
 	readonly recommend: (id: string) => Effect.Effect<string[], Error>
 }
-export const Recommender = ServiceMap.Service<Recommender>("Recommender")
+export const Recommender = Context.GenericTag<Recommender>("Recommender")
 
 export interface LogSink {
 	readonly push: (msg: string) => Effect.Effect<void>
 }
-export const LogSink = ServiceMap.Service<LogSink>("LogSink")
+export const LogSink = Context.GenericTag<LogSink>("LogSink")
 
 /* ──── helpers ──────────────────────────────────────────────────── */
 
@@ -149,11 +149,11 @@ export function programWithEffectConcurrency(
 				return log(`[${timestamp()}] ✅ ${key} completed (${elapsed}s)`)
 			}),
 			Effect.tap(() => Effect.sync(() => done('success'))),
-			Effect.timeoutOrElse({
+			Effect.timeoutFailCause({
 				duration: Duration.seconds(5),
-				onTimeout: () => Effect.fail(new TaskTimeoutError())
+				onTimeout: () => Cause.fail(new TaskTimeoutError())
 			}),
-			Effect.catchCause((cause) => {
+			Effect.catchAllCause((cause) => {
 				const error = Cause.squash(cause)
 				const isTimeout = error instanceof TaskTimeoutError
 				return Effect.all([
@@ -209,9 +209,9 @@ export function programWithEffectConcurrency(
 						Effect.flatMap(() =>
 							Effect.gen(function* () {
 								// Fork each task into its own fiber
-								const userFiber = yield* userTask.pipe(Effect.forkDetach)
-								const ordersFiber = yield* ordersTask.pipe(Effect.forkDetach)
-								const recsFiber = yield* recsTask.pipe(Effect.forkDetach)
+								const userFiber = yield* userTask.pipe(Effect.forkDaemon)
+								const ordersFiber = yield* ordersTask.pipe(Effect.forkDaemon)
+								const recsFiber = yield* recsTask.pipe(Effect.forkDaemon)
 
 								yield* log(`🧵 Forked 3 fibers, waiting for completion...`)
 
