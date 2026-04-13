@@ -1,26 +1,26 @@
-import { Effect, Layer, ServiceMap, Duration, Fiber, Cause } from 'effect'
+import { Effect, Layer, Context, Duration, Fiber, Cause } from 'effect'
 
 /* ──── service contracts ────────────────────────────────────────── */
 
 export interface HttpClient {
 	readonly get: (url: string) => Effect.Effect<unknown, Error>
 }
-export const HttpClient = ServiceMap.Service<HttpClient>("HttpClient")
+export const HttpClient = Context.Service<HttpClient>("HttpClient")
 
 export interface Database {
 	readonly query: (sql: string) => Effect.Effect<unknown, Error>
 }
-export const Database = ServiceMap.Service<Database>("Database")
+export const Database = Context.Service<Database>("Database")
 
 export interface Recommender {
 	readonly recommend: (id: string) => Effect.Effect<string[], Error>
 }
-export const Recommender = ServiceMap.Service<Recommender>("Recommender")
+export const Recommender = Context.Service<Recommender>("Recommender")
 
 export interface LogSink {
 	readonly push: (msg: string) => Effect.Effect<void>
 }
-export const LogSink = ServiceMap.Service<LogSink>("LogSink")
+export const LogSink = Context.Service<LogSink>("LogSink")
 
 /* ──── helpers ──────────────────────────────────────────────────── */
 
